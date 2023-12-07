@@ -1,0 +1,24 @@
+### GEO 398D-1 Machine Learning in Geosciences Project
+
+## Objectives:
+The primary objective of this project was to develop predictive models for estimating future emissions in Rwanda, specifically 2022, leveraging machine learning techniques. 
+The goal was to explore various regression algorithms and identify the most effective model for accurately predicting 2022 emissions based on features collected from 2019 to 2021. This involved comprehensive data analysis, feature selection, and model evaluation to achieve high predictive accuracy while optimizing computational efficiency.
+
+## Background:
+The project centered on a Kaggle competition titled "Emission Prediction in Rwanda," intended as a class project. The dataset comprised numerous features related to emissions, energy consumption, and environmental factors, with data spanning locations like farmlands, cities, power plants. Initially, exploratory data analysis (EDA) was conducted to comprehend the data distribution, identify missing values, and understand feature correlations. Subsequently, preprocessing steps were applied, including dropping columns with excessive missing data (> 70,000 missing values) and scaling features for uniformity. The dataset was split into training and validation sets, with 25% reserved for validation purposes.
+
+## Methodology:
+The methodology involved employing multiple regression algorithms such as XGBoost, RandomForestRegressor, Ridge Regression, SGDRegressor, SVM, and Neural Network to predict emissions. Initially, models were trained using all 75 features, revealing RandomForestRegressor and XGBoost as the top-performing models with 98% and 95% accuracy, respectively. However, feature importance analysis indicated that only a subset of features significantly contributed to predictions, highlighting strong multicollinearity among the variables.
+
+To address multicollinearity and enhance model performance, subsequent iterations involved training models using reduced feature sets (10 and 5 features). Surprisingly, while Neural Network witnessed a remarkable increase in accuracy from 19% to 89% with the reduced feature set, RandomForestRegressor and XGBoost maintained high accuracy performances of 98% and 97%, respectively. The final model selected for predicting emissions on the test dataset was RandomForestRegressor due to its consistent high accuracy.
+
+## Results:
+The feature importance analysis revealed that only a few variables were influential in predicting emissions, indicating a need for feature selection. The RandomForestRegressor and XGBoost models performed exceptionally well with the full feature set, showcasing high accuracies. However, reducing the feature space to 10 and 5 features led to an surge in accuracy for the Neural Network while maintaining high performance for RandomForestRegressor and XGBoost.
+Upon deploying the RandomForestRegressor model on the test dataset, it demonstrated robust predictive power, showcasing its reliability in estimating emissions in the context of Rwanda.
+
+## Conclusion:
+In conclusion, this project successfully explored multiple ML regression algorithms to predict emissions in Rwanda. Through comprehensive feature analysis and model comparison, it was discovered that RandomForestRegressor and XGBoost excelled in accuracy using the full feature set. However, by strategically reducing the feature space, particularly to 10 and 5 significant features, an increase in accuracy was observed for the Neural Network. RandomForestRegressor emerged as the chosen model for predicting emissions in the test dataset due to its consistent high performance. This study highlights the importance of feature selection and model optimization in improving predictive capabilities while maintaining computational efficiency.
+
+
+## THANK YOU!!
+
