@@ -1,0 +1,770 @@
+### GEO 398D-1 Machine Learning in Geosciences Project
+
+>> GOAL: To predict carbon emission in Rwanda
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sb
+from sklearn.preprocessing import StandardScaler
+
+
+import warnings
+warnings.filterwarnings('ignore')
+
+## Import Data (Training Dataset)
+
+train_data = pd.read_csv('train.csv')
+
+train_data_copy = train_data.copy()
+
+train_data_copy.head().T
+
+train_data.describe()
+
+train_data.info()
+
+train_data.shape, train_data.size
+
+## EXPLORATORY DATA ANALYSIS
+
+train_data.isna().sum()  # check for missing values
+
+import missingno as msno # We used missigno to visualize missing data
+
+msno.bar(train_data)
+
+# convert missing data info. into a dataframe
+missing_data = train_data.isna().sum()
+missing_data = pd.DataFrame({'Missing_Count': missing_data}, index=missing_data.index)
+missing_data.head(10)
+
+#Remove columns with very high missing values > 70000
+train_data.drop(list(missing_data.loc[missing_data['Missing_Count']>70000].index), axis = 1, inplace=True)
+train_data.drop(columns='ID_LAT_LON_YEAR_WEEK',axis=1, inplace=True)
+train_data_copy.drop(columns='ID_LAT_LON_YEAR_WEEK',axis=1, inplace=True)
+
+# Check the shape of the original training dataframe and the 
+# treated dataframe that we've dropped certain columns with very high missing values > 80%
+train_data.shape, train_data_copy.shape
+
+## NOTE: 7 columns dropped
+
+dropped_cols = missing_data.loc[missing_data['Missing_Count'] > 70000].index
+dropped_cols
+
+# visualize missing data after dropping the 7 features
+msno.bar(train_data);
+
+# correlation matrix
+
+- Given the high dimensionality of the features, we sampled 10 features plus the label to observe correlations amongst features and how different features correlate with the target
+
+fig, ax =plt.subplots(figsize=(18,12))
+sb.heatmap(train_data[train_data.columns[:20].tolist() + [train_data.columns[-1]]].corr(), 
+           linewidths=1, linecolor='black', cmap='seismic', annot=True, fmt = '.2f')
+
+fig, ax =plt.subplots(figsize=(18,12))
+sb.heatmap(train_data[train_data.columns[20:40].tolist() + [train_data.columns[-1]]].corr(), 
+           linewidths=1, linecolor='black', cmap='viridis', annot=True, fmt = '.2f');
+
+## NOTE: Very high correlation observed amongst some features 
+- so we tried to quantify the level of correlation between different pair of features
+
+threshold = 0.8  # We set a threshold of 0.8 correlation coefficient
+correlation_matrix = train_data.corr()
+
+# Find pairs of highly correlated features
+highly_correlated = (correlation_matrix.abs() > threshold)
+correlated_pairs = [(i, j) for i in range(len(highly_correlated.columns)) for j in range(i+1, len(highly_correlated.columns)) if highly_correlated.iloc[i, j]]
+
+print("Highly correlated feature pairs:")
+for pair in correlated_pairs:
+    print(f"Features {correlation_matrix.columns[pair[0]]} and {correlation_matrix.columns[pair[1]]} are highly correlated.")
+
+import matplotlib as mt
+# Plot scatterplots for highly correlated feature pairs
+for pair in correlated_pairs:
+    feature1 = correlation_matrix.columns[pair[0]]
+    feature2 = correlation_matrix.columns[pair[1]]
+    fig, axes = plt.subplots() # 1 row, 2 columns
+
+    axes.scatter(data=train_data, x=feature1, y=feature2)
+    axes.set_xlabel(feature1)
+    axes.set_ylabel(feature2)
+    x = np.linspace(*axes.get_xlim())
+    axes.plot(x, x, color='red')
+    plt.show()
+    fig.tight_layout()
+
+
+# Covariance
+train_data.cov()
+
+## Visualize the target label (emission) and filter by year
+
+palette = sb.color_palette("husl", len(train_data_copy['year'].unique()))
+fig, ax = plt.subplots(figsize=(6,4))
+sb.lineplot(data=train_data_copy, x = 'week_no', 
+            y = 'emission',
+            hue='year',
+           palette = palette);
+plt.show()
+
+> 2019 and 2021 emission have similar behavior while 2020 emission is significantly lower especially from week 10 to week 30
+
+plt.bar(dict(train_data['year'].value_counts()).keys(), dict(train_data['year'].value_counts()).values(),
+        width=0.4, color='cyan', edgecolor='k')
+plt.xlabel('Year')
+plt.ylabel('Count');
+    
+
+> Data seems balanced by year
+
+plt.figure(figsize=(15, 8))  # Adjust figsize as needed
+for i, column in enumerate(train_data.columns[1:13]):
+    plt.subplot(3, 4, i + 1)  # Adjust the layout according to the number of features
+    sb.histplot(train_data[column], kde=True, color='red')  # Use histplot to show the distribution
+#     plt.title(f'Distribution of {column}')
+    plt.xlabel(column)
+    plt.ylabel('Frequency')
+
+plt.tight_layout()
+plt.show();
+
+plt.figure(figsize=(18, 8))  # Adjust figsize as needed
+for i, column in enumerate(train_data.columns[13:25]):
+    plt.subplot(3, 4, i + 1)  # Adjust the layout according to the number of features
+    sb.histplot(train_data[column], kde=True, color='blue')  # Use histplot to show the distribution
+#     plt.title(f'Distribution of {column}')
+    plt.xlabel(column)
+    plt.ylabel('Frequency')
+
+plt.tight_layout()
+plt.show()
+
+fig, ax = plt.subplots(figsize=(6,4))
+sb.histplot(train_data['emission'], kde=True, color='green')
+#plt.ylim(0,1600)
+plt.xlim(0,500)
+
+fig, ax = plt.subplots(figsize=(6,4))
+sb.histplot(train_data['emission'], kde=True, color='green')
+#plt.ylim(0,500)
+
+palette = sb.color_palette("husl", len(train_data_copy['year'].unique()))
+sb.boxplot(data=train_data, x='year', y='emission',palette=palette)
+#plt.ylim(0,500)
+plt.xlabel('emission')
+
+palette = sb.color_palette("husl", len(train_data_copy['year'].unique()))
+sb.boxplot(data=train_data, x='year', y='emission',palette=palette)
+plt.ylim(0,500)
+plt.xlabel('Year')
+
+Q1 = train_data['emission'].quantile(0.05)
+Q3 = train_data['emission'].quantile(0.95)
+IQR = Q3 - Q1
+
+# Define the threshold for outliers
+lower_threshold = Q1 - 1.5 * IQR
+upper_threshold = Q3 + 1.5 * IQR
+
+# Identify outliers
+outliers = train_data[(train_data['emission'] < lower_threshold) | (train_data['emission'] > upper_threshold)]
+
+# Create the scatter plot
+fig, ax = plt.subplots(figsize=(8,5))
+scatter = ax.scatter(train_data['longitude'], train_data['latitude'], c=train_data['emission'], cmap='Reds', edgecolor='k')
+
+# Highlight outliers in a different color and with larger size
+ax.scatter(outliers['longitude'], outliers['latitude'], c='red', s=100, marker='d', label='Outliers?', edgecolor='k')
+
+cbar = plt.colorbar(scatter)
+cbar.set_label('emission')
+
+plt.xlabel('longitude')
+plt.ylabel('latitude')
+
+
+ax.legend(loc='upper left')
+
+plt.show()
+
+## DATA PREPROCESING
+
+1. Treat null values
+
+2. Scale features
+
+3. Split treated training dataset into training and validation dataset
+
+# Copy the treated train_data (where we've dropped 7 columns with very high number of missing data)
+train_data_copy2 = train_data.copy()
+
+# Drop missing values
+train_data.dropna(inplace=True)
+
+train_data.shape, train_data_copy2.shape
+
+> We still have 57209 by 69 data to work with after dropping the missing values
+
+train_data.isna().sum()
+
+train_data.info()
+
+train_data.describe()
+
+## scale features
+
+- As observed from the histogram plot above, different feature exhibits different distribution, mean, range, etc.
+To avoid the model placing more weights on data with higher values, we scaled the features so we can have a common mean and distribution
+
+train_data.describe()
+
+scaler = StandardScaler()
+features_scaled = scaler.fit_transform(train_data.drop('emission', axis=1))
+features_scaled
+
+features_scaled.shape, train_data.shape
+
+features_scaled_df = pd.DataFrame(data=features_scaled, columns=train_data.columns[:-1])
+
+target = train_data['emission']
+
+msno.bar(features_scaled_df);
+
+## Split training data into training and validation
+
+from sklearn.model_selection import train_test_split
+
+X_train, X_val, y_train, y_val = train_test_split(features_scaled_df, target, test_size=0.2, random_state=42)
+
+## Build model
+
+Models to implement
+
+1. SGD regressor
+
+2. SVR
+
+3. Ensemble regressor
+
+4. Ridge regression
+
+5. XGBoost
+
+6. Neural network
+
+from sklearn.linear_model import SGDRegressor
+from sklearn.svm import SVR
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import Ridge
+import xgboost as xgb
+
+from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.model_selection import cross_val_predict
+
+# Initial build on all features to gain an insight to best performing model(s)
+# Used model's default hyperparameters at first
+models = {
+    'SGD Regressor': SGDRegressor(random_state=1212),
+    'SVR': SVR(),
+    'Ensemble Regressor': RandomForestRegressor(random_state=1212),
+    'Ridge Regression': Ridge(random_state=1212)
+}
+
+for name, model in models.items():
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_val)
+    
+    rmse = mean_squared_error(y_val, y_pred, squared=False)
+    acc = r2_score(y_val, y_pred)
+    
+    print(f"{name} RMSE: {rmse} and Accuracy: {acc}")
+
+> RandomForestRegressor gave a much better initial performance
+
+Implement XGBoost
+
+def train_xgboost_model(X_train, y_train, X_val, y_val, iteration):
+    xg_train = xgb.DMatrix(X_train, label=y_train)
+    xg_val = xgb.DMatrix(X_val, label=y_val)
+
+    params = {
+        'objective': 'reg:squarederror',
+        'eval_metric': 'rmse',
+        'max_depth': 6,
+        'eta': 0.1,
+        'subsample': 0.8,
+        'colsample_bytree': 0.8
+    }
+
+    iteration = iteration
+    eval_results = {}
+
+    def eval_metric_rmse(preds, train):
+        labels = train.get_label()
+        rmse = mean_squared_error(labels, preds, squared=False)
+        return 'rmse', rmse
+
+    model_xgb = xgb.train(params, xg_train, iteration, evals=[(xg_train, 'Train'), (xg_val, 'Validation')],
+                          early_stopping_rounds=10, evals_result=eval_results, feval=eval_metric_rmse, verbose_eval=True)
+
+    y_pred_xgb = model_xgb.predict(xg_val)
+
+    rmse_xgb = mean_squared_error(y_val, y_pred_xgb, squared=False)
+    print(f"XGBoost RMSE: {rmse_xgb}")
+    print(f'XGBoost Accuracy: {r2_score(y_val, y_pred_xgb)}')
+
+    # Plotting RMSE for each round
+    train_rmse = eval_results['Train']['rmse']
+    val_rmse = eval_results['Validation']['rmse']
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    plt.plot(train_rmse, label='Train RMSE')
+    plt.plot(val_rmse, label='Validation RMSE')
+    plt.ylabel('RMSE')
+    plt.title('RMSE per Round during XGBoost Training')
+    plt.legend()
+    plt.grid(True)
+    plt.xlim(0, iteration)
+    plt.show()
+
+    return model_xgb, eval_results, rmse_xgb, y_pred_xgb
+
+model_xg, eval_results, rmse, y_pred_xgb = train_xgboost_model(X_train, y_train, X_val, y_val, 400)
+
+mod = pd.DataFrame({'SGD Regressor': 0.032,
+              'SVR': -0.002169,
+              'RandomForestRegressor':0.972,
+              'Ridge Regression': 0.036,
+                    'XGBoost': 0.958
+    
+}, index=np.arange(1))
+
+bars = plt.bar(dict(mod.iloc[0]).keys(), dict(mod.iloc[0]).values(), width=0.5, color=['skyblue', 'lightgreen', 'salmon', 'gold'], edgecolor='black')
+
+for bar in bars:
+    plt.text(bar.get_x() + bar.get_width() / 2, bar.get_height(), round(bar.get_height(), 2), ha='center', va='bottom', fontsize=10, fontweight='bold')
+
+plt.ylim(0, 1.2)  # Setting y-axis limits from 0 to 1 for better visualization of performance scores
+# plt.xlabel('Models', fontsize=12)
+plt.ylabel('Performance scores', fontsize=12)
+plt.title('Models performance', fontsize=14)
+plt.xticks(rotation=45, fontsize=10)
+plt.yticks(fontsize=10)
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+
+plt.tight_layout()
+plt.show()
+
+# explore optimal n_estimator
+
+rmse_values = []
+estimators_range = [50, 100, 150]
+
+for n in estimators_range:
+    model_rf = RandomForestRegressor(n_estimators=n, random_state=42)
+    model_rf.fit(X_train, y_train)
+    y_pred_rf = model_rf.predict(X_val)
+    rmse = mean_squared_error(y_val, y_pred_rf, squared=False)
+    rmse_values.append(rmse)
+
+plt.figure(figsize=(8, 6))
+plt.plot(estimators_range, rmse_values, marker='o')
+plt.xlabel('Number of Estimators')
+plt.ylabel('RMSE on Validation Set')
+plt.ylim(21,23)
+plt.title('Random Forest Performance on n_estimator')
+plt.grid(True)
+plt.show()
+
+plt.figure(figsize=(6, 4))
+plt.plot(estimators_range, rmse_values, marker='o')
+plt.xlabel('Number of Estimators')
+plt.ylabel('RMSE on Validation Set')
+plt.ylim(21,23)
+plt.title('Random Forest Performance on n_estimator')
+plt.grid(True)
+plt.show()
+
+model_rf = RandomForestRegressor(n_estimators=100).fit(X_train, y_train)
+y_pred_rf = model_rf.predict(X_val)
+
+from sklearn.metrics import r2_score
+r2_score(y_val, y_pred_rf)
+
+train_data['emission'].describe()
+
+fig, ax = plt.subplots()
+
+ax.scatter(x=y_val, y=y_pred_rf, color = 'cyan', edgecolor='k')
+
+ax.set_xlabel('Actual', fontweight='bold')
+ax.set_ylabel('Predicted', fontweight='bold')
+ax.set_title('RandomForestRegressor', fontweight='bold')
+x = np.linspace(*ax.get_xlim())
+ax.plot(x, x, color='red')
+fig.tight_layout()
+plt.show()
+
+fig, ax = plt.subplots()
+ax.scatter(y_val, y_pred_xgb, color = 'salmon', edgecolor='k')
+
+ax.set_xlabel('Actual', fontweight='bold')
+ax.set_ylabel('Predicted', fontweight='bold')
+ax.set_title('XGBoost', fontweight='bold')
+x = np.linspace(*ax.get_xlim())
+ax.plot(x, x, color='red')
+fig.tight_layout()
+
+fig, ax = plt.subplots()
+
+ax.scatter(y_val, y_pred_rf, color = 'cyan', edgecolor='k', label='RandomForestRegressor')
+ax.set_xlabel('Actual', fontweight='bold')
+ax.set_ylabel('Predicted', fontweight='bold')
+x = np.linspace(*ax.get_xlim())
+ax.plot(x, x, color='red')
+ax.legend()
+
+plt.tight_layout()
+
+fig, ax = plt.subplots()
+ax.scatter(y_val, y_pred_xgb, color = 'salmon', edgecolor='k', label='XGBoost')
+ax.set_xlabel('Actual', fontweight='bold')
+ax.set_ylabel('Predicted', fontweight='bold')
+x = np.linspace(*ax.get_xlim())
+ax.plot(x, x, color='red')
+ax.legend()
+
+## Feature importance for RandomForestRegressor
+
+impo_df = pd.DataFrame({'feature': features_scaled_df.columns, 'importance': model_rf.feature_importances_}).set_index('feature').sort_values(by = 'importance', ascending = False)
+impo_df_t10 = impo_df[:10].sort_values(by = 'importance', ascending = True)
+impo_df_t10.plot(kind = 'barh', figsize = (10, 10), color='red')
+plt.legend(loc = 'center right')
+plt.title('Bar chart showing feature importance', fontsize = 14)
+plt.xlabel('importance', fontsize = 12, fontweight='bold')
+plt.ylabel('Features', fontweight='bold')
+plt.show()
+
+## Build Neural Network
+
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Dropout
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import LearningRateScheduler, EarlyStopping, ModelCheckpoint
+
+def create_regression_model(X_train, y_train, X_val, y_val, epoch, learning_rate):
+    model = Sequential([
+        Dense(1000, activation='relu', input_shape=(X_train.shape[1],)),
+        Dense(750, activation='relu'),
+        Dense(500, activation='relu'),
+        Dense(1, activation='linear')
+    ])
+
+    # Learning rate scheduler
+    def lr_scheduler(epoch, lr):
+        if epoch % 10 == 0 and epoch != 0:
+            return lr * 0.9  # Adjust the learning rate every 10 epochs
+        else:
+            return lr
+
+    lr_callback = LearningRateScheduler(lr_scheduler)
+
+    # Early stopping
+    early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+
+    # Model checkpoint
+    checkpoint = ModelCheckpoint('best_model.h5', monitor='val_loss', verbose=1, save_best_only=True, mode='min')
+
+    model.compile(optimizer=Adam(learning_rate=learning_rate), loss='mean_squared_error')
+    history = model.fit(X_train, y_train, epochs=epoch, validation_data=(X_val, y_val),
+                        callbacks=[lr_callback, early_stopping, checkpoint], verbose=1)
+    
+    y_pred = model.predict(X_val)
+
+    rmse = mean_squared_error(y_val, y_pred, squared=False)
+    r2 = r2_score(y_val, y_pred)
+
+    print(f"Neural Network RMSE: {rmse}")
+    print(f"Neural Network R^2 Score: {r2}")
+
+    # Extracting loss values from history
+    train_loss = history.history['loss']
+    val_loss = history.history['val_loss']
+
+    # Plotting loss for training and validation sets
+    epochs = range(1, len(train_loss) + 1)
+    plt.figure(figsize=(10, 6))
+    plt.plot(epochs, train_loss, label='Training Loss')
+    plt.plot(epochs, val_loss, label='Validation Loss')
+    plt.title('Training and Validation Loss')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+    return model, history
+
+
+model_nn, history = create_regression_model(X_train, y_train, X_val, y_val, 100, 0.001)
+
+## Performance with all features
+
+mod2 = pd.DataFrame({'SGD Regressor': 0.031,
+              'SVR': -0.004,
+              'RandomForestRegressor':0.972,
+              'Ridge Regression': 0.036,
+                    'XGBoost': 0.954,
+                    'Neural Network': 0.198
+    
+}, index=np.arange(1))
+
+
+bars2 = plt.bar(dict(mod2.iloc[0]).keys(), dict(mod2.iloc[0]).values(), width=0.5, color=['skyblue', 'lightgreen', 'salmon', 'gold'], edgecolor='black')
+
+# Adding data labels on top of each bar
+for bar in bars2:
+    plt.text(bar.get_x() + bar.get_width() / 2, bar.get_height(), round(bar.get_height(), 2), ha='center', va='bottom', fontsize=10, fontweight='bold')
+
+plt.ylim(0, 1.2)  # Setting y-axis limits from 0 to 1 for better visualization of performance scores
+plt.xlabel('Models', fontsize=12)
+plt.ylabel('Performance scores', fontsize=12)
+plt.title('Models performance', fontsize=14)
+plt.xticks(rotation=45, fontsize=10)
+plt.yticks(fontsize=10)
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+
+plt.tight_layout()
+plt.show()
+
+# Sample top 10 features basd on feature importance
+
+impo_df
+
+new_train = features_scaled_df[impo_df.index[:10]]
+
+new_train.shape, train_data['emission'].shape
+
+X_train2, X_val2, y_train2, y_val2 = train_test_split(new_train, train_data.dropna()['emission'], test_size=0.2, random_state=1296)
+
+X_train2.shape, y_train2.shape, X_val2.shape, y_val2.shape
+
+model_nn2, history2 = create_regression_model(X_train2, y_train2, X_val2, y_val2, 100, 0.001)
+
+RandomForest
+
+model_rf2 = RandomForestRegressor(n_estimators=100).fit(X_train2, y_train2)
+y_pred_rf2 = model_rf2.predict(X_val2)
+r2_score(y_val2, y_pred_rf2)
+
+XGBoost
+
+model_xg2, eval_results2, rmse2, y_pred_xg2 = train_xgboost_model(X_train2, y_train2, X_val2, y_val2, 300)
+
+mod2 = pd.DataFrame({'RandomForestRegressor':0.988,
+                    'XGBoost': 0.981,
+                    'Neural Network': 0.780
+    
+}, index=np.arange(1))
+
+
+bars2 = plt.bar(dict(mod2.iloc[0]).keys(), dict(mod2.iloc[0]).values(), width=0.5, color=['skyblue', 'lightgreen', 'salmon', 'gold'], edgecolor='black')
+
+# Adding data labels on top of each bar
+for bar in bars2:
+    plt.text(bar.get_x() + bar.get_width() / 2, bar.get_height(), round(bar.get_height(), 2), ha='center', va='bottom', fontsize=10, fontweight='bold')
+
+plt.ylim(0, 1.2)  # Setting y-axis limits from 0 to 1 for better visualization of performance scores
+plt.xlabel('Models', fontsize=12)
+plt.ylabel('Performance scores', fontsize=12)
+plt.title('Models performance', fontsize=14)
+plt.xticks(rotation=45, fontsize=10)
+plt.yticks(fontsize=10)
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+
+plt.tight_layout()
+plt.show()
+
+## Check top 5 important features
+
+impo_df = pd.DataFrame({'feature': new_train.columns, 'importance': model_rf2.feature_importances_}).set_index('feature').sort_values(by = 'importance', ascending = False)
+impo_df_t10 = impo_df[:5].sort_values(by = 'importance', ascending = True)
+impo_df_t10.plot(kind = 'barh', figsize = (10, 10), color='red')
+plt.legend(loc = 'center right')
+plt.title('Bar chart showing feature importance', fontsize = 14)
+plt.xlabel('importance', fontsize = 12, fontweight='bold')
+plt.ylabel('Features', fontweight='bold')
+plt.show()
+
+Build models with the top 5 features
+
+new_train2 = new_train[impo_df.index[:5]]
+
+X_train3, X_val3, y_train3, y_val3 = train_test_split(new_train2, train_data['emission'], test_size=0.2, random_state=1212)
+
+RandomForestRegressor
+
+model_rf3 = RandomForestRegressor().fit(X_train3, y_train3)
+y_pred_rf3 = model_rf3.predict(X_val3)
+r2_score(y_val3, y_pred_rf3)
+
+Neural network
+
+model_nn3, history3 = create_regression_model(X_train3, y_train3, X_val3, y_val3, 100, 0.01)
+
+XGBoost
+
+model_xg3, eval_results3, rmse3, y_pred_xg3 = train_xgboost_model(X_train3, y_train3, X_val3, y_val3, 300)
+
+Visualize model performance with top 5 features
+
+mod2 = pd.DataFrame({
+              'RandomForestRegressor':0.984,
+                    'XGBoost': 0.971,
+                    'Neural Network': 0.89
+    
+}, index=np.arange(1))
+
+
+bars2 = plt.bar(dict(mod2.iloc[0]).keys(), dict(mod2.iloc[0]).values(), width=0.4, color=['skyblue', 'lightgreen', 'salmon', 'gold'], edgecolor='black')
+
+# Adding data labels on top of each bar
+for bar in bars2:
+    plt.text(bar.get_x() + bar.get_width() / 2, bar.get_height(), round(bar.get_height(), 2), ha='center', va='bottom', fontsize=10, fontweight='bold')
+
+plt.ylim(0, 1.2)  # Setting y-axis limits from 0 to 1 for better visualization of performance scores
+plt.xlabel('Models', fontsize=12)
+plt.ylabel('Performance scores', fontsize=12)
+plt.title('Models performance', fontsize=14)
+plt.xticks(rotation=45, fontsize=10)
+plt.yticks(fontsize=10)
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+
+plt.tight_layout()
+plt.show()
+
+##  EMISSION PREDICTION ON THE TEST DATASET
+
+test_data = pd.read_csv('test.csv')
+
+test_data_copy = test_data.copy()
+
+test_data_copy.shape
+
+test_data_copy.describe()
+
+test_data_copy.head().T
+
+test_data.shape, train_data.shape
+
+Extract columns used for training the first set of models with all features
+
+cols = [col for col in test_data.columns if col not in train_data.columns]
+
+cols
+
+test_data.drop(cols[1:], axis=1, inplace=True)
+
+test_data.shape, train_data.shape
+
+Visualize missing data
+
+msno.bar(test_data);
+
+Drop missing data
+
+test_data = test_data.dropna()
+
+msno.bar(test_data);
+
+## Using RandomForestRegressor to predict emission on the test dataset and compare the prediction with emission of 2019, 2020, and 2021
+
+pred_df_scaled_all = pd.DataFrame({test_data.columns[0]: test_data['ID_LAT_LON_YEAR_WEEK'],
+              'Predicted Emission': model_rf.predict(StandardScaler().fit_transform(test_data.drop('ID_LAT_LON_YEAR_WEEK', axis=1))),
+                           'week': test_data['week_no']
+    
+})
+
+palette = sb.color_palette("husl", len(train_data_copy['year'].unique()))
+fig, ax = plt.subplots(figsize=(6,4))
+sb.lineplot(data=train_data_copy, x = 'week_no', 
+            y = 'emission',
+            hue='year',
+           palette = palette);
+
+sb.lineplot(data=pred_df_scaled_all, x ='week', 
+            y = 'Predicted Emission',
+           palette = palette, color='k', label='2022 predicted');
+
+plt.legend();
+
+## EXTRACT THE FIVE FEATURES USED TO TRAIN THE LAST MODEL
+
+cols2 = [col for col in test_data.columns if col not in new_train2.columns]
+test_data2 = test_data.drop(cols2, axis=1)
+
+test_data2.head(5)
+
+X_train
+
+## RandomForest with five features prediction
+
+pred_df_scaled = pd.DataFrame({test_data.columns[0]: test_data['ID_LAT_LON_YEAR_WEEK'],
+              'Predicted Emission': model_rf3.predict(StandardScaler().fit_transform(test_data2)),
+                           'week': test_data['week_no']
+    
+})
+
+palette = sb.color_palette("husl", len(test_data_copy['year'].unique()))
+fig, ax = plt.subplots(figsize=(6,4))
+# sb.lineplot(data=pred_df, x ='week', 
+#             y = 'Predicted Emission',
+#             hue='year',
+#            palette = palette)
+
+sb.lineplot(data=pred_df_scaled, x ='week', 
+            y = 'Predicted Emission',
+           palette = palette, color='k');
+
+palette = sb.color_palette("husl", len(train_data_copy['year'].unique()))
+fig, ax = plt.subplots(figsize=(6,4))
+sb.lineplot(data=train_data_copy, x ='week_no', 
+            y = 'emission',
+            hue='year',
+           palette = palette);
+
+sb.lineplot(data=pred_df_scaled, x ='week', 
+            y = 'Predicted Emission',
+           palette = palette, color='k', label='2022 predicted');
+
+plt.legend();
+
+# Final Project Report
+
+
+## Objectives:
+The primary objective of this project was to develop predictive models for estimating future emissions in Rwanda, specifically 2022, leveraging machine learning techniques. The goal was to explore various regression algorithms and identify the most effective model for accurately predicting 2022 emissions based on features collected from 2019 to 2021. This involved comprehensive data analysis, feature selection, and model evaluation to achieve high predictive accuracy while optimizing computational efficiency.
+
+## Background:
+The project centered on a Kaggle competition titled "Emission Prediction in Rwanda," intended as a class project. The dataset comprised numerous features related to emissions, energy consumption, and environmental factors, with data spanning locations like farmlands, cities, power plants. Initially, exploratory data analysis (EDA) was conducted to comprehend the data distribution, identify missing values, and understand feature correlations. Subsequently, preprocessing steps were applied, including dropping columns with excessive missing data (> 70,000 missing values) and scaling features for uniformity. The dataset was split into training and validation sets, with 25% reserved for validation purposes.
+
+## Methodology:
+The methodology involved employing multiple regression algorithms such as XGBoost, RandomForestRegressor, Ridge Regression, SGDRegressor, SVM, and Neural Network to predict emissions. Initially, models were trained using all 75 features, revealing RandomForestRegressor and XGBoost as the top-performing models with 98% and 95% accuracy, respectively. However, feature importance analysis indicated that only a subset of features significantly contributed to predictions, highlighting strong multicollinearity among the variables.
+
+To address multicollinearity and enhance model performance, subsequent iterations involved training models using reduced feature sets (10 and 5 features). Surprisingly, while Neural Network witnessed a remarkable increase in accuracy from 19% to 89% with the reduced feature set, RandomForestRegressor and XGBoost maintained high accuracy performances of 98% and 97%, respectively. The final model selected for predicting emissions on the test dataset was RandomForestRegressor due to its consistent high accuracy.
+
+## Results:
+The feature importance analysis revealed that only a few variables were influential in predicting emissions, indicating a need for feature selection. The RandomForestRegressor and XGBoost models performed exceptionally well with the full feature set, showcasing high accuracies. However, reducing the feature space to 10 and 5 features led to an surge in accuracy for the Neural Network while maintaining high performance for RandomForestRegressor and XGBoost.
+Upon deploying the RandomForestRegressor model on the test dataset, it demonstrated robust predictive power, showcasing its reliability in estimating emissions in the context of Rwanda.
+
+## Conclusion:
+In conclusion, this project successfully explored multiple ML regression algorithms to predict emissions in Rwanda. Through comprehensive feature analysis and model comparison, it was discovered that RandomForestRegressor and XGBoost excelled in accuracy using the full feature set. However, by strategically reducing the feature space, particularly to 10 and 5 significant features, an increase in accuracy was observed for the Neural Network. RandomForestRegressor emerged as the chosen model for predicting emissions in the test dataset due to its consistent high performance. This study highlights the importance of feature selection and model optimization in improving predictive capabilities while maintaining computational efficiency.
+
+
+## THANK YOU!!
+
